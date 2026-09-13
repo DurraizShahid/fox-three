@@ -1,0 +1,70 @@
+[gd_resource type="Resource" script_class="SongProfile" load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://scripts/music/song_profile.gd" id="1_song"]
+[ext_resource type="Script" path="res://scripts/music/music_section.gd" id="2_sec"]
+[ext_resource type="Script" path="res://scripts/music/important_moment.gd" id="3_mom"]
+[ext_resource type="Script" path="res://scripts/music/stage_theme.gd" id="4_theme"]
+[ext_resource type="Resource" path="res://resources/themes/sunset_canyon.tres" id="5_theme_res"]
+
+[sub_resource type="Resource" id="MusicSection_build_first_drop"]
+script = ExtResource("2_sec")
+section_type = 2
+start_time = 40.0
+end_time = 52.0
+intensity = 0.72
+importance = 0.62
+density_mult = 1.18
+speed_mult = 1.05
+pattern_override = -1
+auto_generated = false
+
+[sub_resource type="Resource" id="MusicSection_first_drop"]
+script = ExtResource("2_sec")
+section_type = 4
+start_time = 52.0
+end_time = 60.0
+intensity = 1.0
+importance = 1.0
+density_mult = 1.85
+speed_mult = 1.15
+pattern_override = -1
+auto_generated = false
+
+[sub_resource type="Resource" id="MusicSection_after_first_drop"]
+script = ExtResource("2_sec")
+section_type = 1
+start_time = 60.0
+end_time = 64.0
+intensity = 0.72
+importance = 0.32
+density_mult = 1.1
+speed_mult = 1.0
+pattern_override = -1
+auto_generated = false
+
+[sub_resource type="Resource" id="ImportantMoment_first_drop"]
+script = ExtResource("3_mom")
+time = 52.0
+duration = 1.5
+intensity = 1.0
+label = "FIRST DROP"
+triggers_drop_surge = true
+
+[resource]
+script = ExtResource("1_song")
+song_id = "bonfire_local_test"
+song_name = "Knife Party - Bonfire (Local Test)"
+stream = null
+stream_path = "res://audio/Knife Party - Bonfire.mp3"
+bpm = 174.0
+beat_offset = 0.0
+beats_per_bar = 4
+beats_per_phrase = 16
+seed = 174052
+difficulty = 0.85
+global_speed_mult = 1.0
+global_intensity_mult = 1.08
+stage_theme = ExtResource("5_theme_res")
+sections = Array[Resource]([SubResource("MusicSection_build_first_drop"), SubResource("MusicSection_first_drop"), SubResource("MusicSection_after_first_drop")])
+important_moments = Array[Resource]([SubResource("ImportantMoment_first_drop")])
+analysis_json_path = "res://audio/Knife Party - Bonfire.analysis.json"

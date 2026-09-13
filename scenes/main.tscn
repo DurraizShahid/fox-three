@@ -1,9 +1,11 @@
-[gd_scene load_steps=13 format=3]
+[gd_scene load_steps=15 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://scenes/fighter.tscn" id="2_fighter"]
 [ext_resource type="Script" path="res://scripts/chase_camera.gd" id="3_cam"]
 [ext_resource type="Script" path="res://scripts/sfx_manager.gd" id="4_sfx"]
+[ext_resource type="Script" path="res://scripts/music/accurate_music_director.gd" id="5_music"]
+[ext_resource type="Resource" path="res://resources/music/bonfire_local_test.tres" id="6_bonfire"]
 
 [sub_resource type="ProceduralSkyMaterial" id="SkyMat_sunset"]
 sky_top_color = Color(0.08, 0.12, 0.28, 1)
@@ -67,6 +69,8 @@ outline_color = Color(0, 0, 0, 0.9)
 
 [node name="Main" type="Node3D"]
 script = ExtResource("1_main")
+song_profile = ExtResource("6_bonfire")
+debug_overlay_enabled = true
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Env_main")
@@ -92,6 +96,10 @@ current = true
 fov = 75.0
 script = ExtResource("3_cam")
 target = NodePath("../Fighter")
+
+[node name="MusicDirector" type="Node" parent="."]
+script = ExtResource("5_music")
+music_bus = "Music"
 
 [node name="HUD" type="CanvasLayer" parent="."]
 

@@ -1,3 +1,7 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+
+# Local copyrighted smoke-test track. Keep the generated analysis JSON if desired,
+# but never accidentally commit the source MP3.
+audio/Knife Party - Bonfire.mp3
