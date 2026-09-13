@@ -94,6 +94,13 @@ func _ready() -> void:
 		chase_cam.target = fighter
 	fighter.lane_switched.connect(_on_lane_switched)
 	_ensure_music_systems()
+	# Wire visualizer: give EnvironmentController live references to world materials + geometry
+	if env_controller != null:
+		env_controller.register_world_materials(
+			_pillar_mats, _post_mat_a, _post_mat_b, _ring_mat, _beacon_mat, _roof_mat,
+			_lane_mats, _ground_mat, _abyss_mat
+		)
+		env_controller.register_pillar_nodes(_pillars)
 	_apply_song_profile()
 
 
@@ -823,11 +830,11 @@ func _recycle_rings(delta: float) -> void:
 		if _ring_flash[i] <= 0.001 and music_director != null and not music_director.is_fallback():
 			var hype: float = music_director.hype
 			var beat_p: float = 1.0 - music_director.beat_phase # 1 at beat, 0 before next
-			# Exponential shape so pulse is sharp at beat.
-			beat_p = pow(clampf(beat_p, 0.0, 1.0), 3.0)
-			var pulse: float = beat_p * 0.06 * (0.5 + hype * 0.8)
+			# Exponential shape so pulse is sharp at beat — visualizer strong.
+			beat_p = pow(clampf(beat_p, 0.0, 1.0), 2.2)
+			var pulse: float = beat_p * 0.14 * (0.55 + hype * 1.1)
 			if music_director.current_beat % 4 == 0:
-				pulse *= 1.4
+				pulse *= 1.55
 			if pulse > 0.001:
 				var s2: float = 1.0 + pulse
 				ring.scale = Vector3(s2, s2, s2)
