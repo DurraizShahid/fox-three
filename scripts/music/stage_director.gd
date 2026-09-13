@@ -173,7 +173,7 @@ func get_next_ring_position(fighter_z: float, ring_index: int, fallback_spacing:
 	var local_rng := RandomNumberGenerator.new()
 	local_rng.seed = _base_seed ^ (bar * 2654435761) ^ (ring_index * 97531) ^ (int(prof.seed) & 0xffff)
 
-	var pos: Vector3 = _position_for_pattern(_current_pattern, local_rng, bar, fighter_z, theme, sec, intensity, z_base)
+	var pos: Vector3 = _position_for_pattern(_current_pattern, local_rng, bar, fighter_z, theme, sec, intensity, z_base, spacing)
 	return pos
 
 ## Ring spacing musical: meters_per_beat * beats_per_ring / density-ish
@@ -212,7 +212,7 @@ func _ring_z_ahead(fighter_z: float, spacing: float, prof: SongProfile, ring_ind
 	# Use ring_index to stagger so not all rings share same Z.
 	return fighter_z - spacing * float(ring_count) - float(ring_index % 3) * spacing * 0.15
 
-func _position_for_pattern(pattern: int, rng: RandomNumberGenerator, bar: int, fighter_z: float, theme: StageTheme, sec: MusicSection, intensity: float, z_base: float) -> Vector3:
+func _position_for_pattern(pattern: int, rng: RandomNumberGenerator, bar: int, fighter_z: float, theme: StageTheme, sec: MusicSection, intensity: float, z_base: float, spacing: float = 50.0) -> Vector3:
 	var lane_spacing: float = 40.0
 	if fighter != null:
 		lane_spacing = fighter.lane_spacing
