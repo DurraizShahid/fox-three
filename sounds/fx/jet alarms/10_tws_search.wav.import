@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://ddrb448h3eb4i"
+path="res://.godot/imported/10_tws_search.wav-97147cb2d9f38667f84692d5b8fae5c5.sample"
+
+[deps]
+
+source_file="res://sounds/fx/jet alarms/10_tws_search.wav"
+dest_files=["res://.godot/imported/10_tws_search.wav-97147cb2d9f38667f84692d5b8fae5c5.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

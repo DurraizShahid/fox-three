@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://2t42coulasn7"
+path="res://.godot/imported/11_tws_lock.wav-7faa3cdfc44d2612cb24e71c379275ab.sample"
+
+[deps]
+
+source_file="res://sounds/fx/jet alarms/11_tws_lock.wav"
+dest_files=["res://.godot/imported/11_tws_lock.wav-7faa3cdfc44d2612cb24e71c379275ab.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

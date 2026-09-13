@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://ch2e5cfcxd4bd"
+path="res://.godot/imported/04_caution.wav-133b247bd041eb5d09c574d01ba87973.sample"
+
+[deps]
+
+source_file="res://sounds/fx/jet alarms/04_caution.wav"
+dest_files=["res://.godot/imported/04_caution.wav-133b247bd041eb5d09c574d01ba87973.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2
