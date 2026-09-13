@@ -31,6 +31,15 @@ signal stunt_performed(kind: String, intensity: float, combo: int)
 @export var auto_play_music: bool = true
 @export var debug_overlay_enabled: bool = false ## show F3 overlay at start
 
+@export_category("Music — Roads / Visualizer")
+@export_range(0.0, 2.0, 0.05) var road_verticality_hype_gain: float = 0.85 ## hype scales lane wave amplitude (roads climb more in choruses)
+@export_range(0.0, 1.0, 0.02) var road_beat_heave: float = 0.18 ## roads heave on beat (meters) — subtle but readable
+@export_range(0.0, 1.0, 0.02) var road_downbeat_heave: float = 0.32
+@export_range(0.0, 1.5, 0.05) var road_weave_hype_gain: float = 0.55 ## hype makes lanes weave laterally
+@export_range(0.0, 1.0, 0.05) var road_weave_beat_gain: float = 0.22
+@export_range(0.0, 2.0, 0.05) var dash_pulse_gain: float = 0.9 ## dash/center-line flashes with beat
+@export_range(0.0, 1.0, 0.05) var road_width_beat_gain: float = 0.12 ## lane width breathes
+
 @onready var fighter: FighterJet = $Fighter
 @onready var chase_cam: ChaseCamera = $ChaseCamera
 @onready var speed_label: Label = $HUD/TopLeft/SpeedLabel
@@ -72,6 +81,7 @@ var _ring_graze_mat: StandardMaterial3D
 var _pillar_mats: Array[StandardMaterial3D] = []
 var _roof_mat: StandardMaterial3D
 var _beacon_mat: StandardMaterial3D
+var _strip_mat: StandardMaterial3D
 var _unit_box: BoxMesh
 var _beacon_mesh: SphereMesh
 
@@ -80,6 +90,9 @@ var _lane_params: Array[Dictionary] = []
 var _lane_mats: Array[StandardMaterial3D] = []
 var _abyss_mat: StandardMaterial3D
 var _abyss_mesh: PlaneMesh
+var _road_beat_pulse: float = 0.0
+var _road_downbeat_pulse: float = 0.0
+var _road_hype_smooth: float = 0.0
 
 
 func _ready() -> void:
@@ -98,7 +111,7 @@ func _ready() -> void:
 	if env_controller != null:
 		env_controller.register_world_materials(
 			_pillar_mats, _post_mat_a, _post_mat_b, _ring_mat, _beacon_mat, _roof_mat,
-			_lane_mats, _ground_mat, _abyss_mat
+			_lane_mats, _ground_mat, _abyss_mat, _strip_mat
 		)
 		env_controller.register_pillar_nodes(_pillars)
 	_apply_song_profile()
@@ -218,6 +231,7 @@ func _process(delta: float) -> void:
 	_recycle_ground()
 	_recycle_rings(delta)
 	_recycle_pillars()
+	_update_road_visualizer(delta)
 	_update_hud()
 
 
@@ -362,7 +376,10 @@ func _lane_height(lane: int, z: float) -> float:
 	if _lane_params.size() != 3:
 		return 0.0
 	var p: Dictionary = _lane_params[lane + 1]
-	var raw: float = p.offset + p.amp1 * sin(p.freq1 * z + p.phase1) + p.amp2 * sin(p.freq2 * z + p.phase2)
+	# Music verticality: hype makes roads climb/dip more dramatically
+	var amp_scale: float = 1.0 + _road_hype_smooth * road_verticality_hype_gain
+	# Section intensity can also modulate via StageDirector pattern? Use hyphen for now.
+	var raw: float = p.offset + (p.amp1 * amp_scale) * sin(p.freq1 * z + p.phase1) + (p.amp2 * amp_scale * 0.85) * sin(p.freq2 * z + p.phase2)
 	# Keep lane floors above the canyon floor so the dip never hides under the abyss.
 	# "Go below" means below the old flat ground (y=0), not below the abyss mesh.
 	return maxf(raw, abyss_y + 2.2)
@@ -454,6 +471,12 @@ func _make_materials() -> void:
 		m.roughness = 0.93
 		_lane_mats.append(m)
 
+	_strip_mat = StandardMaterial3D.new()
+	_strip_mat.albedo_color = Color(0.2, 0.9, 1.0)
+	_strip_mat.emission_enabled = true
+	_strip_mat.emission = Color(0.2, 0.9, 1.0)
+	_strip_mat.emission_energy_multiplier = 1.2
+
 
 func _build_ground() -> void:
 	# Disabled → legacy flat strip (keeps the straight-line look for comparison)
@@ -503,11 +526,8 @@ func _build_ground() -> void:
 	post_mesh.size = Vector3(0.5, 7.0, 0.5)
 	var strip_mesh := BoxMesh.new()
 	strip_mesh.size = Vector3(0.35, 0.12, 8.0)
-	var strip_mat := StandardMaterial3D.new()
-	strip_mat.albedo_color = Color(0.2, 0.9, 1.0)
-	strip_mat.emission_enabled = true
-	strip_mat.emission = Color(0.2, 0.9, 1.0)
-	strip_mat.emission_energy_multiplier = 1.2
+	# Use shared _strip_mat (cached, visualizer drives it) — no per-build allocation
+	var strip_mat: StandardMaterial3D = _strip_mat
 
 	var seg_len: float = tile_length / float(maxi(lane_segment_count, 1))
 	var lane_box := BoxMesh.new()
@@ -746,6 +766,78 @@ func _recycle_ground() -> void:
 					var pd: Vector3 = child.position
 					pd.y = center_h + lane_thickness * 0.5 + 0.08
 					child.position = pd
+
+
+func _update_road_visualizer(_delta: float) -> void:
+	# Roads / paths react to music without constant re-allocation.
+	if music_director == null or music_director.is_fallback() or env_controller == null:
+		return
+	# Smooth hype/beat from EnvironmentController (already decaying)
+	var hype: float = env_controller.get_hype_smooth()
+	var beat: float = env_controller.get_beat_pulse()
+	var down: float = env_controller.get_downbeat_pulse()
+	# Update cached hype for _lane_height verticality scaling
+	_road_hype_smooth = lerpf(_road_hype_smooth, hype, 0.08)
+	_road_beat_pulse = beat
+	_road_downbeat_pulse = down
+	# Road width breathes with beat, weave with hype/beat — do via lane scale
+	var width_pulse: float = 1.0 + beat * road_width_beat_gain * 0.45 + down * road_width_beat_gain * 0.7
+	var weave: float = sin(Time.get_ticks_msec() / 1000.0 * 1.7) * road_weave_hype_gain * hype * 1.2 + beat * road_weave_beat_gain * 0.9
+	# Iterate visible tiles' lane segments to apply heave + weave + width
+	for tile in _tiles:
+		var tile_z: float = tile.global_position.z
+		# Heave: roads lift with beat/hype (additive, not permanent)
+		var heave: float = beat * road_beat_heave + down * road_downbeat_heave + hype * 0.06 + sin(Time.get_ticks_msec() / 1000.0 * 5.3) * beat * 0.04
+		for child in tile.get_children():
+			if not (child is MeshInstance3D):
+				continue
+			if not child.has_meta("kind"):
+				continue
+			var kind: String = child.get_meta("kind")
+			if kind == "lane":
+				var lane_idx: int = child.get_meta("lane")
+				var local_z: float = child.position.z
+				var world_z: float = tile_z + local_z
+				var base_h: float = _lane_height(lane_idx, world_z) # already includes hype-scaled verticality
+				var p: Vector3 = child.position
+				p.y = base_h + lane_thickness * 0.5 + heave * (0.7 + 0.3 * sin(float(lane_idx) * 1.3))
+				# Weave + width via scale.x (lane_width direction)
+				var base_x: float = float(lane_idx) * fighter.lane_spacing
+				p.x = base_x + weave * (1.0 + 0.3 * sin(float(lane_idx) * 2.0 + Time.get_ticks_msec() / 1000.0 * 0.9))
+				# Width pulse via scale
+				var s: Vector3 = child.scale
+				# lane_box was size (lane_width, lane_thickness, seg_len-0.12). Scale.x=1 is base. Pulse it.
+				s.x = lerpf(s.x, width_pulse, 0.18)
+				child.scale = s
+				child.position = p
+			elif kind == "dash":
+				var local_z_dash: float = child.position.z
+				var world_z_dash: float = tile_z + local_z_dash
+				var base_hd: float = _lane_height(0, world_z_dash)
+				var pd: Vector3 = child.position
+				pd.y = base_hd + lane_thickness * 0.5 + 0.08 + heave * 0.55
+				# Dash flashes handled by strip material emission; also scale length subtly with beat
+				var sd: Vector3 = child.scale
+				sd.z = lerpf(sd.z, 1.0 + beat * dash_pulse_gain * 0.22, 0.22)
+				child.scale = sd
+				child.position = pd
+			elif kind == "post":
+				var lx2: float = child.get_meta("lx")
+				var local_z_post: float = child.position.z
+				var world_z_post: float = tile_z + local_z_post
+				var base_post_h: float
+				if is_equal_approx(lx2, 20.0):
+					base_post_h = (_lane_height(0, world_z_post) + _lane_height(1, world_z_post)) * 0.5
+				elif is_equal_approx(lx2, -20.0):
+					base_post_h = (_lane_height(-1, world_z_post) + _lane_height(0, world_z_post)) * 0.5
+				elif lx2 > 0.0:
+					base_post_h = _lane_height(1, world_z_post)
+				else:
+					base_post_h = _lane_height(-1, world_z_post)
+				var pp: Vector3 = child.position
+				pp.y = base_post_h + 3.5 + heave * 0.45
+				child.position = pp
+	# Strip material pulse is handled by EnvironmentController; no need to duplicate here
 
 
 func _recycle_rings(delta: float) -> void:

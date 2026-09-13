@@ -10,15 +10,15 @@ class_name EnvironmentController
 @export var fill_path: NodePath = NodePath("../Fill")
 @export var stage_theme: StageTheme = null
 
-## Tunables (exposed, not buried). Increased defaults for Obvious visualizer feel.
+## Tunables (exposed, not buried). Rebalanced to avoid whiteout — subtle at low hype, readable.
 @export_category("Reactivity — Sky & Fog")
-@export_range(0.0, 3.0, 0.05) var glow_hype_gain: float = 1.2
-@export_range(0.0, 3.0, 0.05) var exposure_hype_gain: float = 0.55
-@export_range(0.0, 3.0, 0.05) var fog_hype_gain: float = 0.9
-@export_range(0.0, 3.0, 0.05) var sky_energy_gain: float = 1.2
-@export_range(0.0, 3.0, 0.05) var sun_beat_gain: float = 0.9
-@export_range(0.0, 3.0, 0.05) var sun_hype_gain: float = 1.1
-@export_range(0.0, 3.0, 0.05) var fill_beat_gain: float = 0.65
+@export_range(0.0, 3.0, 0.05) var glow_hype_gain: float = 0.32
+@export_range(0.0, 3.0, 0.05) var exposure_hype_gain: float = 0.14
+@export_range(0.0, 3.0, 0.05) var fog_hype_gain: float = 0.22
+@export_range(0.0, 3.0, 0.05) var sky_energy_gain: float = 0.38
+@export_range(0.0, 3.0, 0.05) var sun_beat_gain: float = 0.32
+@export_range(0.0, 3.0, 0.05) var sun_hype_gain: float = 0.38
+@export_range(0.0, 3.0, 0.05) var fill_beat_gain: float = 0.28
 @export_range(1.0, 20.0, 0.5) var beat_decay: float = 10.0
 @export_range(1.0, 12.0, 0.5) var hype_response: float = 3.2
 @export_range(1.0, 12.0, 0.5) var drop_flash_decay: float = 6.5
@@ -26,18 +26,18 @@ class_name EnvironmentController
 
 @export_category("Visualizer — World Objects")
 @export var visualizer_enabled: bool = true
-@export_range(0.0, 3.0, 0.05) var building_hype_gain: float = 1.0
-@export_range(0.0, 3.0, 0.05) var building_beat_gain: float = 0.85
-@export_range(0.0, 3.0, 0.05) var building_low_gain: float = 0.7 ## bass → pillars/ground
-@export_range(0.0, 3.0, 0.05) var ring_hype_gain: float = 1.4
-@export_range(0.0, 3.0, 0.05) var ring_beat_gain: float = 1.1
-@export_range(0.0, 3.0, 0.05) var beacon_hype_gain: float = 1.6
-@export_range(0.0, 3.0, 0.05) var beacon_beat_gain: float = 1.4
-@export_range(0.0, 3.0, 0.05) var lane_hype_gain: float = 0.7
-@export_range(0.0, 2.0, 0.05) var ground_hype_gain: float = 0.9
-@export_range(0.0, 2.0, 0.05) var sky_hue_shift_gain: float = 0.65 ## 0=none, 1=full palette pulse
-@export_range(0.0, 0.4, 0.01) var building_scale_gain: float = 0.11 ## visualizer: buildings stretch on bass/beat
-@export_range(0.0, 1.0, 0.01) var building_scale_low_gain: float = 0.07
+@export_range(0.0, 3.0, 0.05) var building_hype_gain: float = 0.42
+@export_range(0.0, 3.0, 0.05) var building_beat_gain: float = 0.34
+@export_range(0.0, 3.0, 0.05) var building_low_gain: float = 0.28 ## bass → pillars/ground
+@export_range(0.0, 3.0, 0.05) var ring_hype_gain: float = 0.52
+@export_range(0.0, 3.0, 0.05) var ring_beat_gain: float = 0.48
+@export_range(0.0, 3.0, 0.05) var beacon_hype_gain: float = 0.62
+@export_range(0.0, 3.0, 0.05) var beacon_beat_gain: float = 0.58
+@export_range(0.0, 3.0, 0.05) var lane_hype_gain: float = 0.26
+@export_range(0.0, 2.0, 0.05) var ground_hype_gain: float = 0.28
+@export_range(0.0, 2.0, 0.05) var sky_hue_shift_gain: float = 0.32 ## 0=none, 1=full palette pulse
+@export_range(0.0, 0.4, 0.01) var building_scale_gain: float = 0.05 ## visualizer: buildings stretch on bass/beat
+@export_range(0.0, 1.0, 0.01) var building_scale_low_gain: float = 0.025
 
 var world_env: WorldEnvironment = null
 var env: Environment = null
@@ -92,6 +92,9 @@ var _ground_mat: StandardMaterial3D = null
 var _ground_base_color: Color = Color(0.05, 0.07, 0.11)
 var _abyss_mat: StandardMaterial3D = null
 var _abyss_base_color: Color = Color(0.025, 0.03, 0.055)
+var _strip_mat: StandardMaterial3D = null
+var _strip_base_energy: float = 1.2
+var _strip_base_color: Color = Color(0.2, 0.9, 1.0)
 var _pillar_nodes: Array[MeshInstance3D] = []
 var _pillar_base_scales: Array[Vector3] = []
 
@@ -181,7 +184,8 @@ func register_world_materials(
 	roof: StandardMaterial3D,
 	lane_mats: Array[StandardMaterial3D],
 	ground: StandardMaterial3D,
-	abyss: StandardMaterial3D
+	abyss: StandardMaterial3D,
+	strip: StandardMaterial3D = null
 ) -> void:
 	_pillar_mats = pillar_mats.duplicate()
 	_pillar_base_colors.resize(_pillar_mats.size())
@@ -226,6 +230,10 @@ func register_world_materials(
 	_abyss_mat = abyss
 	if _abyss_mat != null:
 		_abyss_base_color = _abyss_mat.albedo_color
+	_strip_mat = strip
+	if _strip_mat != null:
+		_strip_base_energy = _strip_mat.emission_energy_multiplier
+		_strip_base_color = _strip_mat.emission if _strip_mat.emission != Color(0,0,0,0) else _strip_mat.albedo_color
 	_recache_world_bases_from_theme()
 	# Cache pillar node base scales if already registered
 	if not _pillar_nodes.is_empty() and _pillar_base_scales.size() != _pillar_nodes.size():
@@ -326,101 +334,109 @@ func _process(delta: float) -> void:
 	var high: float = _high_smoothed
 
 	# ------------------------------------------------------------------
-	# Environment — much more aggressive visualizer than before
+	# Environment — rebalanced: readable at low hype, strong but not white at drops
 	# ------------------------------------------------------------------
-	var target_glow: float = _base_glow + hype * glow_hype_gain * env_react + mid * 0.55 * vis + drop * 1.1 + down * 0.45
+	var target_glow: float = _base_glow + hype * glow_hype_gain * env_react + mid * 0.18 * vis + drop * 0.35 + down * 0.14
+	target_glow = clampf(target_glow, 0.55, 1.15)
 	env.glow_intensity = lerpf(env.glow_intensity, target_glow, 1.0 - exp(-6.0 * delta))
-	env.glow_bloom = lerpf(env.glow_bloom, _base_glow * 0.25 + hype * 0.12 * vis + drop * 0.08, 1.0 - exp(-5.0 * delta))
+	env.glow_bloom = lerpf(env.glow_bloom, clampf(_base_glow * 0.25 + hype * 0.055 * vis + drop * 0.035, 0.05, 0.22), 1.0 - exp(-5.0 * delta))
 
-	var target_exposure: float = _base_exposure + hype * exposure_hype_gain * env_react + drop * 0.55 + beat * 0.08
+	var target_exposure: float = _base_exposure + hype * exposure_hype_gain * env_react + drop * 0.18 + beat * 0.03
+	target_exposure = clampf(target_exposure, 0.98, 1.28)
 	env.tonemap_exposure = lerpf(env.tonemap_exposure, target_exposure, 1.0 - exp(-4.5 * delta))
 
 	if env.fog_enabled:
-		var target_fog: float = _base_fog_density + hype * fog_hype_gain * 0.006 * env_react + low * 0.003 * vis + drop * 0.005 + beat * 0.001
+		var target_fog: float = _base_fog_density + hype * fog_hype_gain * 0.0022 * env_react + low * 0.0012 * vis + drop * 0.0018 + beat * 0.0004
+		target_fog = clampf(target_fog, 0.001, 0.012)
 		env.fog_density = lerpf(env.fog_density, target_fog, 1.0 - exp(-3.0 * delta))
-		# Fog color pulse — warm shift with hype + low end
-		var fog_target: Color = _base_fog_color.lerp(Color(1.0, 0.45, 0.25), hype * 0.35 * vis + drop * 0.4)
-		fog_target = fog_target.lerp(Color(0.35, 0.55, 1.0), high * 0.12 * vis)
+		var fog_target: Color = _base_fog_color.lerp(Color(1.0, 0.5, 0.30), hype * 0.22 * vis + drop * 0.22)
+		fog_target = fog_target.lerp(Color(0.45, 0.60, 1.0), high * 0.07 * vis)
 		env.fog_light_color = env.fog_light_color.lerp(fog_target, 1.0 - exp(-3.5 * delta))
 
 	if sky_mat != null:
-		var target_sky_e: float = _base_sky_energy + hype * sky_energy_gain * 0.9 * env_react + low * 0.35 * vis + high * 0.15 * vis + drop * 1.4 + beat * 0.18 + down * 0.35
+		var target_sky_e: float = _base_sky_energy + hype * sky_energy_gain * 0.45 * env_react + low * 0.14 * vis + high * 0.07 * vis + drop * 0.42 + beat * 0.07 + down * 0.13
+		target_sky_e = clampf(target_sky_e, 0.88, 1.55)
 		sky_mat.sky_energy_multiplier = lerpf(sky_mat.sky_energy_multiplier, target_sky_e, 1.0 - exp(-4.0 * delta))
-		# Hue shift — hype drives sunset horizon hotter, drop flashes magenta, high drives top cool flash
-		var horizon_shift: float = hype * sky_hue_shift_gain * vis + drop * 0.85
-		var top_shift: float = beat * 0.12 * vis + high * 0.18 * vis + drop * 0.35
-		var warm: Color = Color(1.0, 0.42, 0.18).lerp(Color(1.0, 0.15, 0.55), hype * 0.45)
+		var horizon_shift: float = hype * sky_hue_shift_gain * vis * 0.55 + drop * 0.32
+		var top_shift: float = beat * 0.06 * vis + high * 0.08 * vis + drop * 0.14
+		var warm: Color = Color(1.0, 0.42, 0.18).lerp(Color(1.0, 0.22, 0.55), hype * 0.32)
 		var cool: Color = Color(0.28, 0.45, 1.0)
-		sky_mat.sky_horizon_color = _base_sky_horizon.lerp(warm, clampf(horizon_shift, 0.0, 1.0))
-		sky_mat.sky_top_color = _base_sky_top.lerp(cool, clampf(top_shift * 0.35, 0.0, 1.0))
-		sky_mat.ground_bottom_color = _base_ground_bottom.lerp(Color(0.18, 0.12, 0.22), hype * 0.35 * vis + low * 0.15)
-		sky_mat.ground_horizon_color = _base_ground_horizon.lerp(Color(0.65, 0.25, 0.18), hype * 0.5 * vis + mid * 0.18)
+		sky_mat.sky_horizon_color = _base_sky_horizon.lerp(warm, clampf(horizon_shift, 0.0, 0.55))
+		sky_mat.sky_top_color = _base_sky_top.lerp(cool, clampf(top_shift * 0.35, 0.0, 0.32))
+		sky_mat.ground_bottom_color = _base_ground_bottom.lerp(Color(0.18, 0.12, 0.22), hype * 0.18 * vis + low * 0.07)
+		sky_mat.ground_horizon_color = _base_ground_horizon.lerp(Color(0.65, 0.25, 0.18), hype * 0.24 * vis + mid * 0.08)
 
 	if sun_light != null:
-		var sun_add: float = beat * sun_beat_gain * 0.9 + down * sun_hype_gain * 1.4 + hype * 1.1 * env_react + drop * 2.2 + low * 0.6
-		var target_sun: float = _base_sun_energy + sun_add
+		var sun_add: float = beat * sun_beat_gain * 0.42 + down * sun_hype_gain * 0.62 + hype * 0.42 * env_react + drop * 0.75 + low * 0.22
+		var target_sun: float = clampf(_base_sun_energy + sun_add, 0.55, 2.2)
 		sun_light.light_energy = lerpf(sun_light.light_energy, target_sun, 1.0 - exp(-7.5 * delta))
-		# Color temperature pulse: warm on bass, cool on high
-		var sun_warm: Color = Color(1.0, 0.72, 0.45).lerp(Color(1.0, 0.55, 0.25), hype * 0.6 + low * 0.25)
-		sun_warm = sun_warm.lerp(Color(0.75, 0.85, 1.0), high * 0.18)
+		var sun_warm: Color = Color(1.0, 0.72, 0.45).lerp(Color(1.0, 0.58, 0.28), hype * 0.38 + low * 0.14)
+		sun_warm = sun_warm.lerp(Color(0.80, 0.86, 1.0), high * 0.09)
 		sun_light.light_color = sun_light.light_color.lerp(sun_warm, 1.0 - exp(-4.5 * delta))
 
 	if fill_light != null:
-		var fill_add: float = beat * fill_beat_gain * 0.85 + hype * 0.85 * env_react + drop * 1.6 + mid * 0.5 + high * 0.22
-		var target_fill: float = _base_fill_energy + fill_add
+		var fill_add: float = beat * fill_beat_gain * 0.38 + hype * 0.34 * env_react + drop * 0.52 + mid * 0.20 + high * 0.09
+		var target_fill: float = clampf(_base_fill_energy + fill_add, 0.18, 1.35)
 		fill_light.light_energy = lerpf(fill_light.light_energy, target_fill, 1.0 - exp(-6.5 * delta))
-		var fill_cool: Color = Color(0.45, 0.65, 1.0).lerp(Color(0.95, 0.45, 0.95), hype * 0.35 + mid * 0.25)
+		var fill_cool: Color = Color(0.45, 0.65, 1.0).lerp(Color(0.88, 0.48, 0.92), hype * 0.18 + mid * 0.12)
 		fill_light.light_color = fill_light.light_color.lerp(fill_cool, 1.0 - exp(-5.0 * delta))
 
 	# ------------------------------------------------------------------
-	# World objects — buildings, posts, rings, beacons, lanes, ground
+	# World objects — rebalanced so quiet sections still read dark
 	# ------------------------------------------------------------------
 	if not visualizer_enabled:
 		return
 
-	# Posts — strong beat pulse, bass drives intensity
 	if _post_mat_a != null:
-		var a_e: float = _post_a_base_energy + hype * building_hype_gain * 1.6 + beat * building_beat_gain * 2.4 + down * 1.2 + low * building_low_gain * 1.4 + drop * 3.5
+		var a_e: float = _post_a_base_energy + hype * building_hype_gain * 0.62 + beat * building_beat_gain * 0.9 + down * 0.45 + low * building_low_gain * 0.52 + drop * 1.15
+		a_e = clampf(a_e, 1.8, 5.2)
 		_post_mat_a.emission_energy_multiplier = lerpf(_post_mat_a.emission_energy_multiplier, a_e, 1.0 - exp(-14.0 * delta))
 	if _post_mat_b != null:
-		var b_e: float = _post_b_base_energy + hype * building_hype_gain * 1.6 + beat * building_beat_gain * 2.4 + down * 1.2 + low * building_low_gain * 1.4 + drop * 3.5
+		var b_e: float = _post_b_base_energy + hype * building_hype_gain * 0.62 + beat * building_beat_gain * 0.9 + down * 0.45 + low * building_low_gain * 0.52 + drop * 1.15
+		b_e = clampf(b_e, 1.8, 5.2)
 		_post_mat_b.emission_energy_multiplier = lerpf(_post_mat_b.emission_energy_multiplier, b_e, 1.0 - exp(-14.0 * delta))
 
-	# Rings — centerpiece visualizer, high + hype driven
 	if _ring_mat != null:
-		var r_e: float = _ring_base_energy + hype * ring_hype_gain * 2.2 + beat * ring_beat_gain * 2.6 + down * 1.8 + high * 1.4 + drop * 4.5
+		var r_e: float = _ring_base_energy + hype * ring_hype_gain * 0.78 + beat * ring_beat_gain * 1.0 + down * 0.62 + high * 0.52 + drop * 1.45
+		r_e = clampf(r_e, 1.6, 4.6)
 		_ring_mat.emission_energy_multiplier = lerpf(_ring_mat.emission_energy_multiplier, r_e, 1.0 - exp(-12.0 * delta))
-		# Color flash: lerp toward pulse color on beat/high
-		var r_col: Color = _ring_base_color.lerp(Color(1.0, 0.92, 0.55), (beat * 0.45 + high * 0.35 + drop * 0.55) * vis)
+		var r_col: Color = _ring_base_color.lerp(Color(1.0, 0.92, 0.55), (beat * 0.22 + high * 0.18 + drop * 0.28) * vis)
 		_ring_mat.emission = _ring_mat.emission.lerp(r_col, 1.0 - exp(-10.0 * delta))
 
-	# Beacons — bass/downbeat flashers on towers
 	if _beacon_mat != null:
-		var bec_e: float = _beacon_base_energy + hype * beacon_hype_gain * 2.0 + beat * beacon_beat_gain * 3.0 + down * 2.5 + low * 0.9 + drop * 6.0
+		var bec_e: float = _beacon_base_energy + hype * beacon_hype_gain * 0.72 + beat * beacon_beat_gain * 1.05 + down * 0.85 + low * 0.32 + drop * 2.0
+		bec_e = clampf(bec_e, 3.5, 9.5)
 		_beacon_mat.emission_energy_multiplier = lerpf(_beacon_mat.emission_energy_multiplier, bec_e, 1.0 - exp(-13.0 * delta))
-		var bec_col: Color = _beacon_base_color.lerp(Color(1.0, 0.85, 0.3), beat * 0.35 + drop * 0.5)
+		var bec_col: Color = _beacon_base_color.lerp(Color(1.0, 0.85, 0.3), beat * 0.18 + drop * 0.26)
 		_beacon_mat.emission = _beacon_mat.emission.lerp(bec_col, 1.0 - exp(-10.0 * delta))
 
-	# Roof — mid-driven
 	if _roof_mat != null:
-		var roof_e: float = _roof_base_energy + hype * 1.0 * vis + mid * 1.2 * vis + beat * 0.7 + drop * 2.2
+		var roof_e: float = _roof_base_energy + hype * 0.35 * vis + mid * 0.42 * vis + beat * 0.26 + drop * 0.72
+		roof_e = clampf(roof_e, 1.4, 3.6)
 		_roof_mat.emission_energy_multiplier = lerpf(_roof_mat.emission_energy_multiplier, roof_e, 1.0 - exp(-9.0 * delta))
 
-	# Pillars / buildings — each pillar type gets slightly different response so city feels alive not uniform
-	# Low drives overall building glow, beat gives transient flash, hype lifts base
+	# Center dash strips - road path flashes hard with beat/downbeat
+	if _strip_mat != null:
+		var s_e: float = _strip_base_energy + hype * 0.42 * vis + beat * 1.05 + down * 0.78 + mid * 0.32 + drop * 1.2
+		s_e = clampf(s_e, 0.9, 3.8)
+		_strip_mat.emission_energy_multiplier = lerpf(_strip_mat.emission_energy_multiplier, s_e, 1.0 - exp(-13.5 * delta))
+		var s_col: Color = _strip_base_color.lerp(Color(0.55, 1.0, 1.0), beat * 0.28 + drop * 0.32)
+		s_col = s_col.lerp(Color(1.0, 0.95, 0.45), hype * 0.18 + down * 0.22)
+		_strip_mat.emission = _strip_mat.emission.lerp(s_col, 1.0 - exp(-11.0 * delta))
+		_strip_mat.albedo_color = _strip_mat.albedo_color.lerp(s_col, 1.0 - exp(-10.0 * delta))
+
 	for i in _pillar_mats.size():
 		var m: StandardMaterial3D = _pillar_mats[i]
 		if m == null:
 			continue
 		var base: Color = _pillar_base_colors[i]
-		# Per-type phase offset so not all buildings flash identically
 		var phase_off: float = float(i) * 0.33
-		var beat_phased: float = beat * (0.7 + sin(phase_off * TAU) * 0.22)
-		var target_e: float = hype * building_hype_gain * 0.9 + beat_phased * building_beat_gain * 1.2 + down * 0.6 + low * building_low_gain * 0.8 + drop * 1.8
+		var beat_phased: float = beat * (0.55 + sin(phase_off * TAU) * 0.18)
+		var target_e: float = hype * building_hype_gain * 0.32 + beat_phased * building_beat_gain * 0.42 + down * 0.22 + low * building_low_gain * 0.30 + drop * 0.62
+		target_e = clampf(target_e, 0.0, 1.35)
 		m.emission_energy_multiplier = lerpf(m.emission_energy_multiplier, target_e, 1.0 - exp(-8.0 * delta))
-		# Albedo subtle pulse: buildings get brighter/warmer with hype
-		var bright: Color = base.lerp(Color(0.55, 0.58, 0.65), hype * 0.35 * vis + beat * 0.18 * vis)
-		bright = bright.lerp(Color(0.9, 0.55, 0.4), low * 0.12 * vis + drop * 0.22)
+		var bright: Color = base.lerp(Color(0.48, 0.50, 0.58), hype * 0.18 * vis + beat * 0.07 * vis)
+		bright = bright.lerp(Color(0.78, 0.55, 0.42), low * 0.06 * vis + drop * 0.10)
 		m.albedo_color = m.albedo_color.lerp(bright, 1.0 - exp(-7.0 * delta))
 
 	# Buildings scale visualizer — bass makes city breathe, beat gives snap
