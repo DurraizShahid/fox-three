@@ -25,6 +25,12 @@ signal stunt_performed(kind: String, intensity: float, combo: int)
 @export_range(0.2, 4.0, 0.1) var lane_thickness: float = 1.4
 @export var abyss_y: float = -9.0
 
+@export_category("Music / Stage")
+@export var song_profile: SongProfile = null ## assign a SongProfile to enable music-driven mode; null = fallback endless
+@export var stage_theme: StageTheme = null ## optional override; if null uses SongProfile's theme or fallback sunset
+@export var auto_play_music: bool = true
+@export var debug_overlay_enabled: bool = false ## show F3 overlay at start
+
 @onready var fighter: FighterJet = $Fighter
 @onready var chase_cam: ChaseCamera = $ChaseCamera
 @onready var speed_label: Label = $HUD/TopLeft/SpeedLabel
@@ -34,6 +40,13 @@ signal stunt_performed(kind: String, intensity: float, combo: int)
 @onready var combo_label: Label = $HUD/TopLeft/ComboLabel
 @onready var stunt_label: Label = $HUD/StuntLabel
 @onready var lane_label: Label = $HUD/LaneLabel
+
+## Music-driven systems (created in _ready if missing — keeps old scenes working).
+var music_director: MusicDirector = null
+var stage_director: StageDirector = null
+var env_controller: EnvironmentController = null
+var reactive_director: MusicReactiveDirector = null
+var debug_overlay: MusicDebugOverlay = null
 
 var _tiles: Array[Node3D] = []
 var _rings: Array[MeshInstance3D] = []
@@ -80,6 +93,103 @@ func _ready() -> void:
 	if chase_cam.target == null:
 		chase_cam.target = fighter
 	fighter.lane_switched.connect(_on_lane_switched)
+	_ensure_music_systems()
+	_apply_song_profile()
+
+
+func _ensure_music_systems() -> void:
+	# Find or create MusicDirector
+	music_director = get_node_or_null("MusicDirector") as MusicDirector
+	if music_director == null:
+		music_director = MusicDirector.new()
+		music_director.name = "MusicDirector"
+		music_director.music_bus = "Music"
+		add_child(music_director)
+	# Environment controller (drives WorldEnvironment / Sky / Sun / Fill)
+	env_controller = get_node_or_null("EnvironmentController") as EnvironmentController
+	if env_controller == null:
+		env_controller = EnvironmentController.new()
+		env_controller.name = "EnvironmentController"
+		env_controller.world_env_path = NodePath("WorldEnvironment")
+		env_controller.sun_path = NodePath("Sun")
+		env_controller.fill_path = NodePath("Fill")
+		add_child(env_controller)
+	# StageDirector (music-chunk generation)
+	stage_director = get_node_or_null("StageDirector") as StageDirector
+	if stage_director == null:
+		stage_director = StageDirector.new()
+		stage_director.name = "StageDirector"
+		stage_director.fighter_path = NodePath("Fighter")
+		stage_director.music_director_path = NodePath("MusicDirector")
+		add_child(stage_director)
+	# Reactive director (fighter/camera/env mapping)
+	reactive_director = get_node_or_null("MusicReactiveDirector") as MusicReactiveDirector
+	if reactive_director == null:
+		reactive_director = MusicReactiveDirector.new()
+		reactive_director.name = "MusicReactiveDirector"
+		reactive_director.fighter_path = NodePath("Fighter")
+		reactive_director.camera_path = NodePath("ChaseCamera")
+		reactive_director.music_director_path = NodePath("MusicDirector")
+		reactive_director.environment_controller_path = NodePath("EnvironmentController")
+		reactive_director.stage_director_path = NodePath("StageDirector")
+		add_child(reactive_director)
+	# Debug overlay (F3)
+	debug_overlay = get_node_or_null("MusicDebugOverlay") as MusicDebugOverlay
+	if debug_overlay == null:
+		debug_overlay = MusicDebugOverlay.new()
+		debug_overlay.name = "MusicDebugOverlay"
+		debug_overlay.music_director_path = NodePath("../MusicDirector")
+		debug_overlay.stage_director_path = NodePath("../StageDirector")
+		debug_overlay.fighter_path = NodePath("../Fighter")
+		debug_overlay.enabled = debug_overlay_enabled
+		add_child(debug_overlay)
+	# Theme wiring
+	if stage_theme != null:
+		stage_director.stage_theme = stage_theme
+		env_controller.stage_theme = stage_theme
+		env_controller.apply_theme(stage_theme)
+
+
+func _apply_song_profile() -> void:
+	var prof: SongProfile = song_profile
+	# If inspector profile null, try to load demo if exists (so F5 shows hype even without manual assignment,
+	# but fallback still works if demo missing).
+	if prof == null and ResourceLoader.exists("res://resources/music/demo_song.tres"):
+		var demo: Resource = load("res://resources/music/demo_song.tres")
+		if demo is SongProfile:
+			# Only auto-use demo if it has sections (so a truly empty project falls back cleanly,
+			# but our demo provides clock without audio).
+			# For fallback visibility we keep demo active — comment next line to disable auto.
+			# To keep fallback as default, do NOT auto-assign: fallback mode is when no profile is set.
+			# So we leave prof null intentionally. Uncomment to auto-enable demo:
+			# prof = demo as SongProfile
+			pass
+	if music_director != null:
+		if prof != null:
+			music_director.set_song(prof, auto_play_music)
+			if stage_director != null:
+				stage_director.set_song(prof, stage_theme)
+			if prof.stage_theme != null and stage_theme == null:
+				var th: StageTheme = prof.stage_theme as StageTheme
+				if th != null and env_controller != null:
+					env_controller.apply_theme(th)
+					if stage_director != null:
+						stage_director.stage_theme = th
+		else:
+			music_director.set_song(null, false)
+			if stage_director != null:
+				stage_director.set_song(null)
+
+
+func set_song_profile(profile: SongProfile, play_immediately: bool = true) -> void:
+	song_profile = profile
+	if music_director != null:
+		music_director.set_song(profile, play_immediately)
+	if stage_director != null:
+		stage_director.set_song(profile, stage_theme)
+	if profile != null and profile.stage_theme != null and env_controller != null and stage_theme == null:
+		var th: StageTheme = profile.stage_theme as StageTheme
+		env_controller.apply_theme(th)
 
 
 func _process(delta: float) -> void:
@@ -107,6 +217,28 @@ func _process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("reset_flight"):
 		_reset_flight()
+		return
+	# Debug: music transport (handled by debug overlay F3 + [ ] but also allow bare here)
+	if event is InputEventKey and event.pressed and not event.echo:
+		match event.keycode:
+			KEY_F3:
+				if debug_overlay != null:
+					debug_overlay.toggle()
+			KEY_R:
+				pass # already handled via action; keep for keycode path
+			KEY_BRACERIGHT, KEY_BRACKETRIGHT:
+				if music_director != null and music_director.song_profile != null:
+					var cur: int = music_director.current_section_index
+					var nxt: int = cur + 1
+					var sorted: Array[MusicSection] = music_director.song_profile.get_sorted_sections()
+					if nxt < sorted.size():
+						music_director.seek_to_section(nxt)
+			KEY_BRACELEFT, KEY_BRACKETLEFT:
+				if music_director != null and music_director.song_profile != null:
+					var cur2: int = music_director.current_section_index
+					var prv: int = cur2 - 1
+					if prv >= 0:
+						music_director.seek_to_section(prv)
 
 
 func _reset_flight() -> void:
@@ -114,6 +246,16 @@ func _reset_flight() -> void:
 	fighter.velocity = Vector3(0, 0, -fighter.cruise_speed)
 	fighter.forward_speed = fighter.cruise_speed
 	fighter.shake_trauma = 0.0
+	# Resync music clock and stage so reset doesn't desync audio.
+	if music_director != null:
+		music_director.resync()
+		# Also restart song if a profile is active and we want deterministic restart.
+		if music_director.song_profile != null and auto_play_music:
+			music_director.restart_song()
+	if stage_director != null and music_director != null:
+		stage_director._rebuild_rng()
+	_combo = 0
+	_combo_t = 0.0
 
 
 func _add_stunt(kind: String, intensity: float, combo_add: int, kick: float) -> void:
@@ -458,6 +600,17 @@ func _build_rings() -> void:
 
 
 func _ring_slot(i: int) -> Vector3:
+	# If music-driven stage is active, let StageDirector place rings musically.
+	if stage_director != null and stage_director.is_active() and fighter != null:
+		# Build initial line ahead: use stage director with synthetic fighter_z offset.
+		var fz: float = -60.0 - float(i) * 10.0 # approximate ahead pos for initial build
+		var pos: Vector3 = stage_director.get_next_ring_position(fz, i, ring_spacing)
+		# Ensure initial rings are spread forward from start, not all at same Z.
+		# Re-map Z to linear ahead for initial frame: -60 - i*spacing but y/x from musical.
+		var base_z: float = -60.0 - float(i) * ring_spacing
+		# Keep musical X/Y, replace Z with deterministic spread.
+		var lane_h: float = _lane_height(int(round(pos.x / maxf(fighter.lane_spacing, 1.0))), base_z) if lane_elevation_enabled else 0.0
+		return Vector3(pos.x, clampf(lane_h + 8.0 + (pos.y - 10.0) * 0.3, 4.5, 28.0) if lane_elevation_enabled else pos.y, base_z)
 	# Rings sit on lanes; when elevations are on, height rides the lane
 	# (clearance 7–14 keeps threading reachable 4.5–28 m). When off, keep
 	# the legacy 6–30 spread.
@@ -618,7 +771,16 @@ func _recycle_rings(delta: float) -> void:
 				_add_stunt("GRAZE", 0.5, 1, 3.0)
 		# Recycle passed rings far ahead with a fresh slot.
 		if ring.global_position.z > fz + 20.0:
-			if not lane_elevation_enabled:
+			if stage_director != null and stage_director.is_active():
+				var new_pos: Vector3 = stage_director.get_next_ring_position(fz, i, ring_spacing)
+				# Respect lane elevation if enabled: lift Y above lane.
+				if lane_elevation_enabled:
+					var lane_idx_music: int = clampi(int(round(new_pos.x / maxf(fighter.lane_spacing, 1.0))), -1, 1)
+					var base_h2: float = _lane_height(lane_idx_music, new_pos.z)
+					# Keep musical Y delta but anchored to lane.
+					new_pos.y = clampf(base_h2 + maxf(new_pos.y - _lane_height(lane_idx_music, -60.0), 5.0), 4.5, 28.0)
+				ring.global_position = new_pos
+			elif not lane_elevation_enabled:
 				var lane_pick_legacy: float = float(_rng.randi_range(0, 2) - 1)
 				ring.global_position = Vector3(
 					lane_pick_legacy * fighter.lane_spacing + _rng.randf_range(-3.0, 3.0),
@@ -645,6 +807,7 @@ func _recycle_rings(delta: float) -> void:
 			_ring_passed[i] = false
 			ring.material_override = _ring_mat
 			ring.scale = Vector3.ONE
+			# Music: beat-pulsed rings (scale/emission) handled in _process tick below (no allocation).
 		# Hit flash pop.
 		if _ring_flash[i] > 0.0:
 			_ring_flash[i] = maxf(0.0, _ring_flash[i] - delta * 2.5)
@@ -655,6 +818,22 @@ func _recycle_rings(delta: float) -> void:
 				ring.scale = Vector3.ONE
 		# Gentle spin for life.
 		ring.rotate_z(delta * 0.25)
+		# Music: beat-synced ring pulse (small scale/emission breathing on beats, stronger on downbeats)
+		# Keep cheap: only when music active and not already flashing.
+		if _ring_flash[i] <= 0.001 and music_director != null and not music_director.is_fallback():
+			var hype: float = music_director.hype
+			var beat_p: float = 1.0 - music_director.beat_phase # 1 at beat, 0 before next
+			# Exponential shape so pulse is sharp at beat.
+			beat_p = pow(clampf(beat_p, 0.0, 1.0), 3.0)
+			var pulse: float = beat_p * 0.06 * (0.5 + hype * 0.8)
+			if music_director.current_beat % 4 == 0:
+				pulse *= 1.4
+			if pulse > 0.001:
+				var s2: float = 1.0 + pulse
+				ring.scale = Vector3(s2, s2, s2)
+			# Emission pulse: lerp toward beat color when hype high (no material alloc — just vary override energy if we keep same mat).
+			# We avoid creating new materials per frame; instead we rely on ring's material_override energy tweak via env?
+			# For now keep scale pulse only; emission is driven globally via EnvironmentController + StageTheme.
 
 
 func _recycle_pillars() -> void:
@@ -674,12 +853,20 @@ func _recycle_pillars() -> void:
 					fighter.add_trauma(0.06)
 					_add_stunt("CLOSE!", 0.5, 1, 2.0)
 		if p.global_position.z - depth > fz + 60.0:
-			var side: float = -1.0 if _rng.randf() < 0.5 else 1.0
-			p.global_position.z -= 1000.0
-			p.global_position.x = side * _pillar_lane()
-			if mesh != null:
-				var new_base_y: float = (abyss_y + mesh.size.y * 0.5) if lane_elevation_enabled else (mesh.size.y * 0.5 - 1.0)
-				p.global_position.y = new_base_y
+			if stage_director != null and stage_director.is_active():
+				var pillar_pos: Vector3 = stage_director.get_next_pillar_position(fz, idx, mesh != null and absf(p.global_position.x) < 72.0)
+				p.global_position.x = pillar_pos.x
+				p.global_position.z = pillar_pos.z
+				if mesh != null:
+					var new_base_y2: float = (abyss_y + mesh.size.y * 0.5) if lane_elevation_enabled else (mesh.size.y * 0.5 - 1.0)
+					p.global_position.y = new_base_y2
+			else:
+				var side: float = -1.0 if _rng.randf() < 0.5 else 1.0
+				p.global_position.z -= 1000.0
+				p.global_position.x = side * _pillar_lane()
+				if mesh != null:
+					var new_base_y: float = (abyss_y + mesh.size.y * 0.5) if lane_elevation_enabled else (mesh.size.y * 0.5 - 1.0)
+					p.global_position.y = new_base_y
 			_pillar_passed[idx] = false
 
 
@@ -698,11 +885,21 @@ func _update_hud() -> void:
 		state = "<< BRAKE"
 	elif fighter.lateral_g > 0.7:
 		state = "HARD TURN"
+	# Append music section when active (readable without opening overlay).
+	if music_director != null and not music_director.is_fallback() and music_director.current_section != null:
+		var sec_name: String = music_director.current_section.get_type_name()
+		var hype_str: String = "!" if music_director.hype > 0.85 else ""
+		state += " · %s%s" % [sec_name, hype_str]
 	state_label.text = state
-	info_label.text = "energy %.2f   g %.2f   z %.0f" % [
+	var base_info: String = "energy %.2f   g %.2f   z %.0f" % [
 		fighter.maneuver_energy, fighter.lateral_g, fighter.global_position.z
 	]
-	help_label.text = "WASD/Arrows or left stick/D-pad steer · SHIFT/Space or A/RT boost · CTRL/C or B/LT brake · Q/E or LB/RB, X/Y roll (hold to loop), double-tap A/D · R reset · N radio | V next | B/J alarms"
+	if music_director != null and not music_director.is_fallback():
+		base_info += " | beat %d  bar %d  hype %.2f" % [music_director.current_beat, music_director.current_bar, music_director.hype]
+		if stage_director != null:
+			base_info += "  %s" % stage_director.get_current_pattern_name()
+	info_label.text = base_info
+	help_label.text = "WASD/Arrows steer · SHIFT/Space boost · CTRL/C brake · Q/E roll (hold) · R reset · F3 music debug · [ ] section · N radio | V next | B/J alarms"
 	# Combo meter + stunt popup.
 	if _combo >= 2:
 		combo_label.visible = true

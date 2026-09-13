@@ -1,0 +1,175 @@
+[gd_resource type="Resource" script_class="SongProfile" load_steps=19 format=3]
+
+[ext_resource type="Script" path="res://scripts/music/song_profile.gd" id="1_song"]
+[ext_resource type="Script" path="res://scripts/music/music_section.gd" id="2_sec"]
+[ext_resource type="Script" path="res://scripts/music/important_moment.gd" id="3_mom"]
+[ext_resource type="Script" path="res://scripts/music/stage_theme.gd" id="4_theme"]
+[ext_resource type="Resource" path="res://resources/themes/sunset_canyon.tres" id="5_theme_res"]
+
+[sub_resource type="Resource" id="MusicSection_intro"]
+script = ExtResource("2_sec")
+section_type = 0
+custom_type_name = ""
+start_time = 0.0
+end_time = 8.0
+intensity = 0.22
+importance = 0.05
+density_mult = 0.7
+speed_mult = 0.93
+pattern_override = -1
+stage_theme_override = null
+auto_generated = false
+
+[sub_resource type="Resource" id="MusicSection_verse"]
+script = ExtResource("2_sec")
+section_type = 1
+start_time = 8.0
+end_time = 24.0
+intensity = 0.45
+importance = 0.15
+density_mult = 0.85
+speed_mult = 1.0
+pattern_override = -1
+auto_generated = false
+
+[sub_resource type="Resource" id="MusicSection_build"]
+script = ExtResource("2_sec")
+section_type = 2
+start_time = 24.0
+end_time = 32.0
+intensity = 0.65
+importance = 0.35
+density_mult = 1.05
+speed_mult = 1.07
+pattern_override = -1
+auto_generated = false
+
+[sub_resource type="Resource" id="MusicSection_chorus"]
+script = ExtResource("2_sec")
+section_type = 3
+start_time = 32.0
+end_time = 48.0
+intensity = 0.82
+importance = 0.6
+density_mult = 1.25
+speed_mult = 1.12
+pattern_override = -1
+auto_generated = false
+
+[sub_resource type="Resource" id="MusicSection_breakdown"]
+script = ExtResource("2_sec")
+section_type = 8
+start_time = 48.0
+end_time = 56.0
+intensity = 0.28
+importance = 0.1
+density_mult = 0.55
+speed_mult = 0.96
+pattern_override = -1
+auto_generated = false
+
+[sub_resource type="Resource" id="MusicSection_bridge"]
+script = ExtResource("2_sec")
+section_type = 7
+start_time = 56.0
+end_time = 64.0
+intensity = 0.55
+importance = 0.4
+density_mult = 0.95
+speed_mult = 1.08
+pattern_override = -1
+auto_generated = false
+
+[sub_resource type="Resource" id="MusicSection_solo"]
+script = ExtResource("2_sec")
+section_type = 6
+start_time = 64.0
+end_time = 80.0
+intensity = 0.9
+importance = 0.88
+density_mult = 1.35
+speed_mult = 1.22
+pattern_override = -1
+auto_generated = false
+
+[sub_resource type="Resource" id="MusicSection_crescendo"]
+script = ExtResource("2_sec")
+section_type = 9
+start_time = 80.0
+end_time = 88.0
+intensity = 0.92
+importance = 0.85
+density_mult = 1.45
+speed_mult = 1.18
+pattern_override = -1
+auto_generated = false
+
+[sub_resource type="Resource" id="MusicSection_drop"]
+script = ExtResource("2_sec")
+section_type = 4
+start_time = 88.0
+end_time = 96.0
+intensity = 1.0
+importance = 1.0
+density_mult = 1.7
+speed_mult = 1.32
+pattern_override = -1
+auto_generated = false
+
+[sub_resource type="Resource" id="MusicSection_climax"]
+script = ExtResource("2_sec")
+section_type = 10
+start_time = 96.0
+end_time = 112.0
+intensity = 0.98
+importance = 0.95
+density_mult = 1.6
+speed_mult = 1.35
+pattern_override = -1
+auto_generated = false
+
+[sub_resource type="Resource" id="MusicSection_outro"]
+script = ExtResource("2_sec")
+section_type = 11
+start_time = 112.0
+end_time = 128.0
+intensity = 0.35
+importance = 0.1
+density_mult = 0.6
+speed_mult = 0.95
+pattern_override = -1
+auto_generated = false
+
+[sub_resource type="Resource" id="ImportantMoment_drop_hit"]
+script = ExtResource("3_mom")
+time = 88.0
+duration = 2.5
+intensity = 1.0
+label = "DROP"
+triggers_drop_surge = true
+
+[sub_resource type="Resource" id="ImportantMoment_climax_hit"]
+script = ExtResource("3_mom")
+time = 96.0
+duration = 2.0
+intensity = 1.0
+label = "CLIMAX"
+triggers_drop_surge = true
+
+[resource]
+script = ExtResource("1_song")
+song_id = "demo_sunset"
+song_name = "Demo — Sunset Canyon (No Audio, Clock Only)"
+stream = null
+bpm = 128.0
+beat_offset = 0.0
+beats_per_bar = 4
+beats_per_phrase = 16
+seed = 1337
+difficulty = 0.5
+global_speed_mult = 1.0
+global_intensity_mult = 1.0
+stage_theme = ExtResource("5_theme_res")
+sections = Array[Resource]([SubResource("MusicSection_intro"), SubResource("MusicSection_verse"), SubResource("MusicSection_build"), SubResource("MusicSection_chorus"), SubResource("MusicSection_breakdown"), SubResource("MusicSection_bridge"), SubResource("MusicSection_solo"), SubResource("MusicSection_crescendo"), SubResource("MusicSection_drop"), SubResource("MusicSection_climax"), SubResource("MusicSection_outro")])
+important_moments = Array[Resource]([SubResource("ImportantMoment_drop_hit"), SubResource("ImportantMoment_climax_hit")])
+analysis_json_path = ""

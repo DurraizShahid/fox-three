@@ -4,29 +4,20 @@
 
 Endless straight-line flight with arcade feel: steer/boost/brake/barrel roll, recycled tiles + rings + pillars, stunts + combo + hitstop, chase cam with FOV kick + trauma shake, debug HUD. Deterministic (seed 1337).
 
-## Next: music phase
+## Music phase — implemented (feat/music-driven-stage-system)
 
-The scaffolding is already in: every maneuver is a signal, every frame is a state dict.
+Endless runner now has a reusable music-driven stage architecture. See `docs/music-system.md` for truth. Quick map:
 
-**Consume (do not reinvent):**
+- **Clock**: `MusicDirector` (latency-corrected `AudioStreamPlayer` time, not delta drift; signals `beat/downbeat/bar/phrase/section_*/important_moment_*/hype_changed`)
+- **Config**: `SongProfile` (BPM, beat_offset, sections, moments, theme, JSON) + `StageTheme` (palette/lights/density/pattern weights)
+- **Stage**: `StageDirector` (musical-chunk generation by beats/bars/phrases/sections, deterministic `seed ^ hash(theme)`, pooling)
+- **Mapping**: `MusicReactiveDirector` → `Fighter` (`set_music_speed_multiplier` / beats) + `ChaseCamera` (`trigger_beat_pulse/drop_punch`) + `EnvironmentController` (sky/fog/lights) — no private access, no hard-coded song
+- **Analyzer**: `tools/music_analysis/analyze_song.py` (librosa, offline, JSON sidecar; generic labels — manual relabel to `GUITAR_SOLO` etc.)
+- **Debug**: F3 overlay + `[ ]` section seek, all seekers go through `MusicDirector` so the entire game resyncs
 
-- Fighter signals: `boost_started/ended`, `brake_started/ended`, `barrel_started(direction)/barrel_finished`
-- `FighterJet.get_music_state()` → `{speed_ratio, lateral_g, energy, boosting, braking, rolling, steer}`
-- `Main.stunt_performed(kind, intensity, combo)` + `fighter.style_heat` (combo 0..1)
+Legacy mapping suggestion still useful for new maneuvers, but now those signals *feed* the music system via `get_music_state()` extended keys (`music_speed_mult/target, music_hype/intensity/beat_pulse/surge, music_low/mid/high`). Rule: new maneuvers must emit signals + extend that dict via public API (see `development.md#recipes`); never poll Fighter privates.
 
-**Suggested mapping (starting point, tune by ear):**
-
-| Game event | Musical role |
-|---|---|
-| `speed_ratio` | Tempo / filter cutoff / master intensity |
-| `lateral_g` | Harmonic tension / riser amount |
-| `energy` (`maneuver_energy`) | Single "how hard are we going" macro |
-| `boost_started` → beat drop; `brake_started` → breakdown | Section changes |
-| `barrel_started` | Fill / crash; `direction` picks stereo side |
-| `stunt_performed` intensity + combo tier | Stinger pitch/layer (PERFECT = resolve, GRAZE = tease) |
-| `style_heat` | Extra layer fader (0 = drums+bass, 1 = full stack) |
-
-**Rules:** new maneuvers must emit signals + extend `get_music_state()` (see `development.md#recipes`). Keep the audio bus off the physics thread — sample state in `_process`, never in `_physics_process`.
+Details + workflow to add a song: `docs/music-system.md`.
 
 ## Later (backlog, not scheduled)
 

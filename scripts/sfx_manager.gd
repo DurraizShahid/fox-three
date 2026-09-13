@@ -57,6 +57,12 @@ class_name SFXManager
 @export var flare_on_barrel_roll: bool = true
 @export_range(0.0, 1.0, 0.05) var flare_chance: float = 0.85
 
+@export_category("Music Ducking")
+@export var music_ducking_enabled: bool = true
+@export_range(0.0, 8.0, 0.5) var music_duck_db: float = 3.5 ## how much to duck Music bus during critical alarms (0 = off)
+@export_range(0.1, 2.0, 0.05) var music_duck_attack: float = 0.35
+@export_range(0.1, 4.0, 0.05) var music_duck_release: float = 0.8
+
 @export_category("Debug")
 @export var debug_print: bool = false
 
@@ -181,6 +187,7 @@ func _process(delta: float) -> void:
 	_alarm_t = maxf(0.0, _alarm_t - delta)
 	_update_subtitle_visibility()
 	_update_alarm_hud(delta)
+	_update_music_ducking(delta)
 
 	# Deferred tail after radio finishes (avoids await in _process).
 	if _tail_pending:
@@ -892,6 +899,33 @@ func _update_alarm_hud(_delta: float) -> void:
 		else:
 			alarm_label.visible = true
 			alarm_label.modulate.a = 1.0
+
+
+var _music_duck_current: float = 0.0 ## 0..1 duck amount smoothed
+
+func _update_music_ducking(delta: float) -> void:
+	if not music_ducking_enabled:
+		if _music_duck_current > 0.01:
+			_music_duck_current = lerpf(_music_duck_current, 0.0, 1.0 - exp(-3.0 * delta))
+			_apply_music_duck(_music_duck_current)
+		return
+	var should_duck: bool = false
+	if critical_player != null and critical_player.playing:
+		var k: String = critical_player.get_meta("alarm_key") if critical_player.has_meta("alarm_key") else ""
+		if k in ["pull_up", "altitude", "warning"]:
+			should_duck = true
+	var target: float = 1.0 if should_duck else 0.0
+	var rate: float = music_duck_attack if should_duck else music_duck_release
+	_music_duck_current = lerpf(_music_duck_current, target, 1.0 - exp(-rate * delta))
+	_apply_music_duck(_music_duck_current)
+
+func _apply_music_duck(amount: float) -> void:
+	var bus: int = AudioServer.get_bus_index("Music")
+	if bus == -1:
+		return
+	var db: float = -music_duck_db * amount
+	# Don't spam same value every frame if unchanged much.
+	AudioServer.set_bus_volume_db(bus, db)
 
 
 # ------------------------------------------------------------------

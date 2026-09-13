@@ -1,0 +1,13 @@
+# Fox Three music analyzer — offline tooling only (no runtime dependency in game).
+# Tested with Python 3.10+ and librosa 0.10+
+
+librosa>=0.10.0
+numpy>=1.24.0
+soundfile>=0.12.0
+# Optional but recommended for faster MP3/OGG decoding:
+# - audioread is pulled by librosa automatically
+# - If you hit decoding issues on Windows, also install ffmpeg and ensure it's on PATH.
+
+# For development / linting (optional):
+# pytest
+# black

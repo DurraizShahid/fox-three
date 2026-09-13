@@ -118,6 +118,22 @@ const GLASS_SURFACE: int = 3
 @export_range(0.001, 0.02, 0.0005) var touch_sensitivity: float = 0.006
 @export_range(0.5, 8.0, 0.1) var touch_decay: float = 3.0
 
+@export_category("Music Speed")
+@export var music_speed_enabled: bool = true
+@export_range(0.5, 2.0, 0.01) var music_speed_min_clamp: float = 0.85
+@export_range(0.5, 2.5, 0.01) var music_speed_max_clamp: float = 1.55
+@export_range(0.5, 10.0, 0.1) var music_speed_response: float = 2.2 ## smoothing for music multiplier
+@export_range(0.0, 0.3, 0.01) var music_beat_impulse_gain: float = 0.04 ## small breathing pulse per beat
+@export_range(0.0, 0.3, 0.01) var music_downbeat_gain: float = 0.07 ## stronger on downbeats
+@export_range(1.0, 10.0, 0.1) var music_beat_decay: float = 6.0
+@export_range(0.0, 20.0, 0.5) var music_surge_decay: float = 8.0 ## decay for drop surge (m/s per sec)
+
+@export_category("Music Visuals")
+@export_range(0.0, 2.0, 0.05) var music_exhaust_gain: float = 0.45 ## how much hype lifts flame
+@export_range(0.0, 1.0, 0.05) var music_vortex_gain: float = 0.35 ## hype adds to vortices
+@export_range(0.0, 1.0, 0.05) var music_particle_gain: float = 0.4 ## hype adds to speed particles
+@export_range(0.0, 1.0, 0.05) var music_emission_gain: float = 0.5 ## hype adds to emission
+
 ## Runtime state (read these from camera / music / HUD — all 0..1 unless noted)
 var input_steer: Vector2 = Vector2.ZERO ## x: -1 left / +1 right, y: +1 up / -1 down (after curve)
 var raw_steer: Vector2 = Vector2.ZERO ## before curve, useful for HUD
@@ -159,6 +175,17 @@ var _touch_stick: Vector2 = Vector2.ZERO
 var _time: float = 0.0
 var _slip_yaw_visual: float = 0.0 ## smoothed extra yaw (deg) from slip exaggeration
 var _slip_pitch_visual: float = 0.0
+
+## Music-driven state (public: written by MusicReactiveDirector, never by internals except smoothing)
+var music_speed_mult: float = 1.0 ## target multiplier 0.85..1.55
+var music_intensity: float = 0.0 ## 0..1 current section intensity
+var music_hype: float = 0.0 ## 0..1 hype/impact
+var music_low: float = 0.0
+var music_mid: float = 0.0
+var music_high: float = 0.0
+var _music_speed_current: float = 1.0 ## smoothed
+var _music_beat_kick: float = 0.0 ## transient 0..1 decays
+var _music_surge: float = 0.0 ## m/s one-shot surge (drop) decays via surge_decay
 
 @onready var model: Node3D = $Model
 @onready var flame_core: MeshInstance3D = get_node_or_null("Model/FlameCore") as MeshInstance3D
@@ -253,6 +280,16 @@ func _physics_process(delta: float) -> void:
 	_set_boosting(want_boost and not is_rolling)
 	_set_braking(want_brake and not is_rolling)
 
+	# --- Music speed (public target smoothed internally) ---
+	if music_speed_enabled:
+		_music_speed_current = _exp_damp(_music_speed_current, music_speed_mult, music_speed_response, delta)
+		_music_beat_kick = maxf(0.0, _music_beat_kick - delta * music_beat_decay)
+		_music_surge = maxf(0.0, _music_surge - delta * music_surge_decay)
+	else:
+		_music_speed_current = 1.0
+		_music_beat_kick = 0.0
+		_music_surge = 0.0
+
 	var target_forward: float = cruise_speed
 	var agility: float = 1.0
 	var grip: float = 1.0
@@ -266,6 +303,12 @@ func _physics_process(delta: float) -> void:
 		grip = brake_grip_mult
 	if is_rolling:
 		target_forward = maxf(target_forward, cruise_speed + barrel_speed_kick)
+
+	# Apply music multiplier + beat breathing + drop surge additively (boost/brake remain meaningful).
+	if music_speed_enabled:
+		var music_factor: float = clampf(_music_speed_current + _music_beat_kick, music_speed_min_clamp, music_speed_max_clamp)
+		target_forward *= music_factor
+		target_forward += _music_surge
 
 	# --- Lateral arcade velocity (with inertia/drift) ---
 	var target_vx: float = steer.x * lateral_max_x * agility
@@ -373,6 +416,35 @@ func add_speed_kick(amount: float) -> void:
 	bonus_speed = minf(bonus_speed + amount, 25.0)
 
 
+## ------------------------------------------------------------------
+## Music public API (called by MusicReactiveDirector — no private access)
+## ------------------------------------------------------------------
+
+func set_music_speed_multiplier(mult: float) -> void:
+	music_speed_mult = clampf(mult, music_speed_min_clamp, music_speed_max_clamp)
+
+func trigger_music_beat(is_downbeat: bool) -> void:
+	var gain: float = music_downbeat_gain if is_downbeat else music_beat_impulse_gain
+	# Scale by hype so drops breathe harder, but quiet still subtle.
+	gain *= 0.6 + music_hype * 0.9
+	_music_beat_kick = maxf(_music_beat_kick, gain)
+
+func trigger_music_surge(amount: float) -> void:
+	# One-shot forward surge at drop entry — much larger but decays quickly.
+	_music_surge = maxf(_music_surge, amount)
+
+func set_music_hype(h: float) -> void:
+	music_hype = clampf(h, 0.0, 1.0)
+
+func set_music_intensity(v: float) -> void:
+	music_intensity = clampf(v, 0.0, 1.0)
+
+func set_music_spectrum(low: float, mid: float, high: float) -> void:
+	music_low = clampf(low, 0.0, 1.0)
+	music_mid = clampf(mid, 0.0, 1.0)
+	music_high = clampf(high, 0.0, 1.0)
+
+
 func get_music_state() -> Dictionary:
 	return {
 		"speed_ratio": speed_ratio,
@@ -389,6 +461,16 @@ func get_music_state() -> Dictionary:
 		"heading_yaw_deg": heading_yaw_deg,
 		"crab_angle_deg": crab_angle_deg,
 		"slip_yaw_deg": crab_angle_deg, # alias
+		# Music-driven extensions (for reactive directors + HUD).
+		"music_speed_mult": _music_speed_current,
+		"music_speed_target": music_speed_mult,
+		"music_hype": music_hype,
+		"music_intensity": music_intensity,
+		"music_beat_pulse": _music_beat_kick,
+		"music_surge": _music_surge,
+		"music_low": music_low,
+		"music_mid": music_mid,
+		"music_high": music_high,
 	}
 
 
@@ -574,28 +656,37 @@ func _update_visuals(delta: float) -> void:
 	# Real burners grow in LENGTH, not diameter, with fast turbulent shimmer
 	# instead of a slow cartoon pulse. Emission stays restrained so glow
 	# bloom reads as heat, not a neon balloon. Null-safe.
+	# Music contribution is ADDITIVE so fast + hype is spectacular, slow + hype still pops.
 	var t: float = inverse_lerp(brake_speed, boost_speed, forward_speed)
 	var turb_n: float = sin(_time * 11.0) * 0.5 + sin(_time * 17.0 + 1.7) * 0.3 + sin(_time * 23.0 + 0.6) * 0.2
 	var flick: float = 1.0 + turb_n * flicker_strength * 0.35
 	if is_boosting:
 		flick += sin(_time * 29.0 + 0.9) * flicker_strength * 0.2
+	# Music additive: hype lifts flame; beat kick adds momentary punch.
+	var music_flame_add: float = music_hype * music_exhaust_gain * 0.35 + _music_beat_kick * 0.4 + music_low * 0.08
+	var music_halo_add: float = music_hype * music_exhaust_gain * 0.25 + _music_beat_kick * 0.22
 	if flame_core != null:
 		var flame_w: float = lerpf(exhaust_width_cruise, exhaust_width_boost, t) * (1.0 + (flick - 1.0) * 0.6)
 		var flame_l: float = lerpf(exhaust_length_cruise, exhaust_length_boost, t) * flick
+		# Music: exaggerate length strongly at hype, width barely.
+		flame_l *= 1.0 + music_hype * music_exhaust_gain * 0.7 + _music_beat_kick * 0.5
+		flame_w *= 1.0 + music_hype * 0.12
 		flame_core.scale = Vector3(flame_w, flame_l, 1.0)
 		var cm: StandardMaterial3D = flame_core.get_surface_override_material(0) as StandardMaterial3D
 		if cm != null:
-			cm.emission_energy_multiplier = 0.8 + 1.8 * t + (0.6 if is_boosting else 0.0)
+			cm.emission_energy_multiplier = 0.8 + 1.8 * t + (0.6 if is_boosting else 0.0) + music_flame_add * 1.9
 	if exhaust_halo != null:
 		var halo_s: float = (0.45 + 0.65 * t + (0.15 if is_rolling else 0.0)) * (1.0 + (flick - 1.0) * 0.3)
+		halo_s *= 1.0 + music_halo_add * 1.2 + music_hype * 0.15
 		exhaust_halo.scale = Vector3(halo_s, halo_s, 1.0)
 		var hm: StandardMaterial3D = exhaust_halo.get_surface_override_material(0) as StandardMaterial3D
 		if hm != null:
-			hm.emission_energy_multiplier = 0.25 + 0.6 * t
+			hm.emission_energy_multiplier = 0.25 + 0.6 * t + music_halo_add * 0.8
 	# Wingtip vortices: faint wisps that onset only past vortex_onset G.
 	# Straight cruise stays clean; hard carves / rolls draw thin trails.
+	# Music hype adds vortices so important sections look dense even when flying straight.
 	var vortex_base: float = clampf((lateral_g - vortex_onset) / maxf(1.0 - vortex_onset, 0.01), 0.0, 1.0)
-	var target_v: float = clampf(vortex_base + (0.15 if is_boosting else 0.0) + (0.4 if is_rolling else 0.0), 0.0, 1.0)
+	var target_v: float = clampf(vortex_base + (0.15 if is_boosting else 0.0) + (0.4 if is_rolling else 0.0) + music_hype * music_vortex_gain * 0.9 + _music_beat_kick * 0.3, 0.0, 1.0)
 	_vortex = _exp_damp(_vortex, target_v * vortex_gain, 4.0, delta)
 	if vortex_l != null:
 		vortex_l.amount_ratio = clampf(_vortex, 0.0, 1.0)
@@ -603,7 +694,8 @@ func _update_visuals(delta: float) -> void:
 		vortex_r.amount_ratio = clampf(_vortex, 0.0, 1.0)
 	if boost_particles != null:
 		# Speed dust only when actually fast: cruise is clean, boost/roll streaks.
-		var trail_t: float = clampf((t - 0.35) * 1.6, 0.0, 1.0) + (0.4 if is_rolling else 0.0)
+		# Music hype densifies it without replacing throttle response.
+		var trail_t: float = clampf((t - 0.35) * 1.6, 0.0, 1.0) + (0.4 if is_rolling else 0.0) + music_hype * music_particle_gain * 0.85 + _music_beat_kick * 0.25 + music_high * 0.15
 		boost_particles.amount_ratio = clampf(trail_t, 0.0, 1.0)
 
 
@@ -767,10 +859,14 @@ func _update_paint(_delta: float) -> void:
 	_paint_mat.albedo_color = tinted
 	_paint_mat.metallic = body_metallic
 	_paint_mat.roughness = body_roughness
-	if boost_emission > 0.01 and t > 0.01:
-		_paint_mat.emission_enabled = true
-		_paint_mat.emission = tinted
-		_paint_mat.emission_energy_multiplier = t * boost_emission
+	var hype_emission: float = music_hype * music_emission_gain * 0.6 + _music_beat_kick * 0.25 + music_high * 0.12
+	if boost_emission > 0.01 or hype_emission > 0.01:
+		if t > 0.01 or hype_emission > 0.01:
+			_paint_mat.emission_enabled = true
+			_paint_mat.emission = tinted
+			_paint_mat.emission_energy_multiplier = t * boost_emission + hype_emission
+		else:
+			_paint_mat.emission_enabled = false
 	else:
 		_paint_mat.emission_enabled = false
 
